@@ -8,19 +8,29 @@ if any(arg.startswith('--execution-provider') for arg in sys.argv):
 # reduce tensorflow log level
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 import warnings
-from typing import List
+from typing import List, Optional
 import platform
 import signal
 import shutil
 import argparse
 import onnxruntime
-import tensorflow
 import roop.globals
 import roop.metadata
-import roop.ui as ui
 from roop.predictor import predict_image, predict_video
 from roop.processors.frame.core import get_frame_processors_modules
 from roop.utilities import has_image_extension, is_image, is_video, detect_fps, create_video, extract_frames, get_temp_frame_paths, restore_audio, create_temp, move_temp, clean_temp, normalize_output_path
+
+try:
+    import tensorflow as tf
+except Exception:  # pragma: no cover - tensorflow is optional
+    tf = None  # type: ignore[assignment]
+
+try:
+    import roop.ui as ui
+    UI_IMPORT_ERROR: Optional[BaseException] = None
+except Exception as error:  # pragma: no cover - GUI dependencies are optional
+    ui = None  # type: ignore[assignment]
+    UI_IMPORT_ERROR = error
 
 warnings.filterwarnings('ignore', category=FutureWarning, module='insightface')
 warnings.filterwarnings('ignore', category=UserWarning, module='torchvision')
@@ -92,12 +102,13 @@ def suggest_execution_threads() -> int:
 
 
 def limit_resources() -> None:
-    # prevent tensorflow memory leak
-    gpus = tensorflow.config.experimental.list_physical_devices('GPU')
-    for gpu in gpus:
-        tensorflow.config.experimental.set_virtual_device_configuration(gpu, [
-            tensorflow.config.experimental.VirtualDeviceConfiguration(memory_limit=1024)
-        ])
+    # prevent tensorflow memory leak when tensorflow is available
+    if tf is not None:
+        gpus = tf.config.experimental.list_physical_devices('GPU')
+        for gpu in gpus:
+            tf.config.experimental.set_virtual_device_configuration(gpu, [
+                tf.config.experimental.VirtualDeviceConfiguration(memory_limit=1024)
+            ])
     # limit memory usage
     if roop.globals.max_memory:
         memory = roop.globals.max_memory * 1024 ** 3
@@ -124,7 +135,7 @@ def pre_check() -> bool:
 
 def update_status(message: str, scope: str = 'ROOP.CORE') -> None:
     print(f'[{scope}] {message}')
-    if not roop.globals.headless:
+    if not roop.globals.headless and ui is not None:
         ui.update_status(message)
 
 
@@ -215,6 +226,11 @@ def run() -> None:
     limit_resources()
     if roop.globals.headless:
         start()
-    else:
-        window = ui.init(start, destroy)
-        window.mainloop()
+        return
+    if ui is None:
+        update_status('GUI dependencies are missing. Install the GUI requirements or run roop in headless mode with command line arguments.', 'ROOP.UI')
+        if UI_IMPORT_ERROR is not None:
+            update_status(f'Original import error: {UI_IMPORT_ERROR}', 'ROOP.UI')
+        sys.exit(1)
+    window = ui.init(start, destroy)
+    window.mainloop()

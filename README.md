@@ -21,6 +21,23 @@ Be aware, the installation needs technical skills and is not for beginners. Plea
 [Acceleration](https://github.com/s0md3v/roop/wiki/2.-Acceleration) - Unleash the full potential of your CPU and GPU
 
 
+### Quick start (modern environment)
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements-headless.txt
+# Optional extras
+# pip install gfpgan>=1.3.8,<1.4          # enables the face_enhancer frame processor
+# pip install opennsfw2>=0.10.2,<0.11     # restores NSFW filtering (installs tensorflow)
+# pip install onnxruntime-gpu>=1.18,<1.20 # CUDA acceleration when CUDA libraries are available
+
+python run.py -s source.jpg -t target.mp4 -o output.mp4 --frame-processor face_swapper
+```
+
+For a fully reproducible workflow on Google Colab, open [`notebooks/roop_colab.ipynb`](notebooks/roop_colab.ipynb) and follow the guided setup.
+
+
 ## Usage
 
 Start the program with arguments:
